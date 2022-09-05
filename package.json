@@ -1,0 +1,18 @@
+{
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "jest": "^29.0.2"
+  },
+  "name": "conference-management",
+  "version": "0.1.0",
+  "description": "Conference Track Management",
+  "main": "index.js",
+  "dependencies": {
+    "moment": "^2.29.4"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "author": "Christian Nitzsche",
+  "license": "ISC"
+}
