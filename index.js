@@ -1,6 +1,6 @@
 const moment = require('moment');
 
-const proposals = [
+const PROPOSALS = [
   'Writing Fast Tests Against Enterprise Rails 60min',
   'Overdoing it in Python 45min',
   'Lua for the Masses 30min',
@@ -28,17 +28,19 @@ let tracks = [];
 let session = [];
 
 
-// create Array of Objects -> {name: string, duration: number(in min)}
-// -> later: { name: string, duration: number(in min), startAt: time }
-const editSessions = () => {
-    proposals.map(item => {
-        session.push({name: item, duration: getDuration(item)});
+
+const createSessionsObj = () => {
+    PROPOSALS.map((item, i) => {
+        session.push({id: i, name: item, duration: getDuration(item)});
     });
 }
 
 const getDuration = (sessionItem) => {
-    let match = sessionItem.match(/(.*)\s+([0-9]+)min$/i);
-    if (match) return match[2];   // = X [minutes:number]
+    if (!sessionItem) return null;
+
+    let match = sessionItem.match(/(\S+)\s+([0-9]+)min$/i);
+    if (match && match[2] > 0) 
+        return match[2]*1;   // = X [minutes:number]
 
     match = sessionItem.match(/(.*)\s+(lightning)$/i);
     if (match && match[2].toLowerCase() === 'lightning')
@@ -49,9 +51,8 @@ const getDuration = (sessionItem) => {
 
 
 
-const addNewTrack = () => tracks = [
-    ...tracks,
-    {
+const addNewTrack = () => {
+    return {
       day: tracks.length + 1,
       morningSessions: [], 
       afternoonSessions: [], 
@@ -60,7 +61,7 @@ const addNewTrack = () => tracks = [
           afternoonSession: MAX_AFTERNOON_SESSION
       }
     }
-];
+}
 
 
 
@@ -74,7 +75,7 @@ const createTrackList = (arrSessions) => {
 const addItemToList = (sessionItem) => {
     let track = tracks.find(track => isTimeAvailable(sessionItem.duration, track));
     if (!track) {
-      addNewTrack();
+      tracks = [...tracks, addNewTrack()];
       track = tracks[tracks.length-1];
     }
     addToSession(track, sessionItem);
@@ -85,30 +86,38 @@ const isTimeAvailable = (duration, track) => {
          track.minutesAvaible.afternoonSession >= duration
 }
 
-const addToSession = (track, sessionItem) => {
-    const dur = sessionItem.duration;
-    const time = moment()
-                  .utc()
-                  .startOf('year')
-                  .add(9, "hours");
+const is30Xmin = (dur) => {
+    // because morningSession has to finish at 12 -> 
+    //    only 30,60,90,...minutes-sessions are allowed (as my convention)
+    if (!dur || dur <= 0) throw new Error('Invalid input!');
+    return dur % 30 == 0 ? true : false
+}
 
-    // (Clean Code) Code-Dopplung?:
+
+const addToSession = (track, sessionItem) => {
+    const time = moment().utc().startOf('year')
+                  .add(9, "hours");
+    const dur = sessionItem.duration;
+
+    // testing morning Session
     let minsSessionLeft = track.minutesAvaible.morningSession;
-    if (minsSessionLeft >= dur  &&  dur % 30 === 0) {
-      sessionItem.startAt = time.add(180-minsSessionLeft, "minutes").format("hh:mmA");
+    if (minsSessionLeft >= dur && is30Xmin(dur)) {
+      sessionItem.startAt = time.add(MAX_MORNING_SESSION - minsSessionLeft, "minutes").format("hh:mmA");
       track.minutesAvaible.morningSession -= dur;
       track.morningSessions = [...track.morningSessions, sessionItem];
       return true;
     } 
+
+    // testing afternoon Session
     minsSessionLeft = track.minutesAvaible.afternoonSession;
     time.hour(13);
     if (minsSessionLeft >= dur) {
-      sessionItem.startAt = time.add(240-minsSessionLeft, "minutes").format("hh:mmA");
+      sessionItem.startAt = time.add(MAX_AFTERNOON_SESSION - minsSessionLeft, "minutes").format("hh:mmA");
       track.minutesAvaible.afternoonSession -= dur;
       track.afternoonSessions = [...track.afternoonSessions, sessionItem];
       return true;
     }
-    console.log(`addToSession -> no Condition true: ${track.day}|${sessionItem.name}`)
+
     return false;
 }
 
@@ -151,7 +160,12 @@ const printList = (tracks) => {
 
 
 
-editSessions();
-addNewTrack();
+createSessionsObj();
+tracks = [addNewTrack()];
 createTrackList(session);
 printList(createOutputArray(tracks));
+
+
+
+exports.getDuration = getDuration;
+exports.is30Xmin = is30Xmin;
