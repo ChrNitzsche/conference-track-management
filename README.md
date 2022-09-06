@@ -1,5 +1,5 @@
 # Conference Track Management
-JavaScript
+JavaScript, Moment.js, npm
 
 Tested with Jest
 

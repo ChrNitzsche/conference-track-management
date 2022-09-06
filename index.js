@@ -21,53 +21,58 @@ const proposals = [
   'A World Without HackerNews 30min',
   'User Interface CSS in Rails Apps 30min'
 ];
+const MAX_MORNING_SESSION = 180;
+const MAX_AFTERNOON_SESSION = 240;
 
 let tracks = [];
 let session = [];
 
+
+// create Array of Objects -> {name: string, duration: number(in min)}
+// -> later: { name: string, duration: number(in min), startAt: time }
 const editSessions = () => {
     proposals.map(item => {
-        let str = item.split(' ');
-        let durance = str[str.length - 1].replace('min', '') * 1;
-        if (isNaN(durance)) durance = 5;
-
-        session.push({name: item, durance: durance});
+        session.push({name: item, duration: getDuration(item)});
     });
 }
-editSessions();
 
-const addNewTrack = () => {
-  tracks = [
+const getDuration = (sessionItem) => {
+    let match = sessionItem.match(/(.*)\s+([0-9]+)min$/i);
+    if (match) return match[2];   // = X [minutes:number]
+
+    match = sessionItem.match(/(.*)\s+(lightning)$/i);
+    if (match && match[2].toLowerCase() === 'lightning')
+        return 5;
+        
+    return null;
+}
+
+
+
+const addNewTrack = () => tracks = [
     ...tracks,
     {
       day: tracks.length + 1,
-      morningSession: [], 
-      lunch: 'Lunch', 
-      afternoonSession: [], 
-      event: 'Networking Event',
+      morningSessions: [], 
+      afternoonSessions: [], 
       minutesAvaible: {
-          morningSession: 180, 
-          afternoonSession: 240
+          morningSession: MAX_MORNING_SESSION, 
+          afternoonSession: MAX_AFTERNOON_SESSION
       }
     }
-  ];
-}
+];
 
 
 
-/***** program *****/
+
 const createTrackList = (arrSessions) => {
-    arrSessions.forEach(item => {
-      addItemToList(item)
-    });
-    console.log('################### TRACKS #################');
-    console.log(tracks);
-    console.log('############################################');
-    printList(createOutput(tracks));
+  arrSessions.forEach(item => {
+    addItemToList(item)
+  });
 }
 
 const addItemToList = (sessionItem) => {
-    let track = tracks.find(track => track.minutesAvaible.morningSession >= sessionItem.durance || track.minutesAvaible.afternoonSession >= sessionItem.durance)    
+    let track = tracks.find(track => isTimeAvailable(sessionItem.duration, track));
     if (!track) {
       addNewTrack();
       track = tracks[tracks.length-1];
@@ -75,39 +80,78 @@ const addItemToList = (sessionItem) => {
     addToSession(track, sessionItem);
 }
 
+const isTimeAvailable = (duration, track) => {
+  return track.minutesAvaible.morningSession >= duration || 
+         track.minutesAvaible.afternoonSession >= duration
+}
+
 const addToSession = (track, sessionItem) => {
-    if (track.minutesAvaible.morningSession >= sessionItem.durance) {
-      track.minutesAvaible.morningSession -= sessionItem.durance;
-      track.morningSession = [...track.morningSession, sessionItem];
+    const dur = sessionItem.duration;
+    const time = moment()
+                  .utc()
+                  .startOf('year')
+                  .add(9, "hours");
+
+    // (Clean Code) Code-Dopplung?:
+    let minsSessionLeft = track.minutesAvaible.morningSession;
+    if (minsSessionLeft >= dur  &&  dur % 30 === 0) {
+      sessionItem.startAt = time.add(180-minsSessionLeft, "minutes").format("hh:mmA");
+      track.minutesAvaible.morningSession -= dur;
+      track.morningSessions = [...track.morningSessions, sessionItem];
       return true;
     } 
-    if (track.minutesAvaible.afternoonSession >= sessionItem.durance) {
-      track.minutesAvaible.afternoonSession -= sessionItem.durance;
-      track.afternoonSession = [...track.afternoonSession, sessionItem];
+    minsSessionLeft = track.minutesAvaible.afternoonSession;
+    time.hour(13);
+    if (minsSessionLeft >= dur) {
+      sessionItem.startAt = time.add(240-minsSessionLeft, "minutes").format("hh:mmA");
+      track.minutesAvaible.afternoonSession -= dur;
+      track.afternoonSessions = [...track.afternoonSessions, sessionItem];
       return true;
     }
     console.log(`addToSession -> no Condition true: ${track.day}|${sessionItem.name}`)
     return false;
-  }
+}
+
+
   
-  const createOutput = (tracks) => {
+const createOutputArray = (tracks) => {
     let output = [];
-    console.log('##### Output: #####');
     tracks.forEach(track => {
         output.push(`Track ${track.day}:`)
-        track.morningSession.forEach(item => output.push(item.name));
+        track.morningSessions.forEach(item => output.push(`${item.startAt} ${item.name}`));
         output.push('12:00PM Lunch');
-        track.afternoonSession.forEach(item => output.push(item.name));
-        output.push('Networking Event\n');
+        track.afternoonSessions.forEach(item => output.push(`${item.startAt} ${item.name}`));
+        output.push(getNetworkEvent(track)+"\n");
       }
     );
     return output;
-  }
+}
+
+const getNetworkEvent = (track) => {
+    const timeLeftAtAfternoon = track.minutesAvaible.afternoonSession;
+    if (timeLeftAtAfternoon >= 60) 
+      return '04:00PM Networking Event';
+      
+    const time = moment()
+                  .utc()
+                  .startOf('year')
+                  .add(13, "hours");
+    
+    let startEventAt = time.add(MAX_AFTERNOON_SESSION - timeLeftAtAfternoon, "minutes")
+                           .format("hh:mmA");
+    // return 04:15PM Networking Event
+    return `${startEventAt} Networking Event`;
+}
 
 const printList = (tracks) => {
     tracks.forEach(item => console.log(item));
 }
-  
-  addNewTrack();
-  createTrackList(session);
-  // console.log('tracks ->', session);
+
+
+
+
+
+editSessions();
+addNewTrack();
+createTrackList(session);
+printList(createOutputArray(tracks));
